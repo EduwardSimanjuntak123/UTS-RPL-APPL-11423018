@@ -1,0 +1,583 @@
+================================================================================
+        LAPORAN ARCHITECTURE VISUALIZATION - MediTrack
+        Tanggal: 25 Maret 2026
+        Status: Diagram & Visualisasi Arsitektur
+================================================================================
+
+BAGIAN 4: ARCHITECTURE VISUALIZATION
+================================================================================
+
+1. HIGH-LEVEL SYSTEM ARCHITECTURE DIAGRAM
+----------------------------
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           MEDITRACK PLATFORM                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│                         ┌─────────────────────┐                            │
+│                         │    CLIENT LAYER     │                            │
+│                         ├─────────────────────┤                            │
+│                         │  Web Browser        │                            │
+│                         │  (React/Vue.js)     │                            │
+│                         │                     │                            │
+│                         │  Mobile App         │                            │
+│                         │  (React Native)     │                            │
+│                         └──────────┬──────────┘                            │
+│                                    │                                       │
+│                    ┌───────────────┼───────────────┐                      │
+│                    │               │               │                      │
+│                    ▼               ▼               ▼                      │
+│            ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │
+│            │ API Gateway  │ │ CDN (Static) │ │ Load Balancer│            │
+│            │ (Rate Limit) │ │ (JS, CSS,IMG)│ │              │            │
+│            └──────┬───────┘ └──────────────┘ └──────┬───────┘            │
+│                   │                                   │                   │
+│                   └───────────────┬───────────────────┘                   │
+│                                   │                                       │
+│  ╔════════════════════════════════════════════════════════════════════╗  │
+│  ║              APPLICATION LAYER (Layered Architecture)              ║  │
+│  ║                                                                    ║  │
+│  ║  ┌──────────────────────────────────────────────────────────────┐ ║  │
+│  ║  │ PRESENTATION LAYER (Controllers & API Endpoints)             │ ║  │
+│  ║  │                                                              │ ║  │
+│  ║  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐         │ ║  │
+│  ║  │  │UserController│ │AppointmentCtl│ │MedicalCtrl   │ ...    │ ║  │
+│  ║  │  │  (Auth API)  │ │  (BookAPI)   │ │  (EHR API)   │         │ ║  │
+│  ║  │  └──────┬───────┘ └──────┬───────┘ └──────┬───────┘         │ ║  │
+│  ║  └─────────┼────────────────┼────────────────┼─────────────────┘ ║  │
+│  ║            │                │                │                   ║  │
+│  ║  ┌─────────┴────────────────┴────────────────┴─────────────────┐ ║  │
+│  ║  │ MIDDLEWARE LAYER                                            │ ║  │
+│  ║  │ ┌────────────────────────────────────────────────────────┐  │ ║  │
+│  ║  │ │ • Authentication Middleware (JWT Token Validation)    │  │ ║  │
+│  ║  │ │ • Authorization Middleware (RBAC & Role Checking)    │  │ ║  │
+│  ║  │ │ • Request Validation (FormRequests)                  │  │ ║  │
+│  ║  │ │ • Logging & Monitoring (Request/Response Logging)    │  │ ║  │
+│  ║  │ │ • Error Handling (Exception Translation)             │  │ ║  │
+│  ║  │ └────────────────────────────────────────────────────────┘  │ ║  │
+│  ║  └─────────┬──────────────────────────────────────────────────┘ ║  │
+│  ║            │                                                    ║  │
+│  ║  ┌─────────┴──────────────────────────────────────────────────┐ ║  │
+│  ║  │ BUSINESS LOGIC LAYER (Services & Domain Logic)             │ ║  │
+│  ║  │                                                            │ ║  │
+│  ║  │  ┌────────────────────────────────────────────────────┐   │ ║  │
+│  ║  │  │ Bounded Contexts (DDD Principles)                 │   │ ║  │
+│  ║  │  │                                                   │   │ ║  │
+│  ║  │  │ ┌─────────────────┐ ┌──────────────────────┐    │   │ ║  │
+│  ║  │  │ │ User & Identity │ │ Appointment Service  │    │   │ ║  │
+│  ║  │  │ │ • Auth Logic    │ │ • Booking Logic      │    │   │ ║  │
+│  ║  │  │ │ • Role Mgmt     │ │ • Conflict Check     │    │   │ ║  │
+│  ║  │  │ │ • Permissions   │ │ • Notifications      │    │   │ ║  │
+│  ║  │  │ └─────────────────┘ └──────────────────────┘    │   │ ║  │
+│  ║  │  │                                                   │   │ ║  │
+│  ║  │  │ ┌─────────────────┐ ┌──────────────────────┐    │   │ ║  │
+│  ║  │  │ │Clinical Service │ │ Pharmacy Service     │    │   │ ║  │
+│  ║  │  │ │ • EHR Storage   │ │ • Stock Management   │    │   │ ║  │
+│  ║  │  │ │ • Prescriptions │ │ • Reorder Automation │    │   │ ║  │
+│  ║  │  │ │ • Lab Results   │ │ • Drug Tracking      │    │   │ ║  │
+│  ║  │  │ └─────────────────┘ └──────────────────────┘    │   │ ║  │
+│  ║  │  │                                                   │   │ ║  │
+│  ║  │  │ ┌─────────────────┐ ┌──────────────────────┐    │   │ ║  │
+│  ║  │  │ │Payment Service  │ │Analytics Service     │    │   │ ║  │
+│  ║  │  │ │ • Transactions  │ │ • Metrics            │    │   │ ║  │
+│  ║  │  │ │ • Invoicing     │ │ • Reporting          │    │   │ ║  │
+│  ║  │  │ │ • Claims        │ │ • Forecasting        │    │   │ ║  │
+│  ║  │  │ └─────────────────┘ └──────────────────────┘    │   │ ║  │
+│  ║  │  │                                                   │   │ ║  │
+│  ║  │  └────────────────────────────────────────────────────┘   │ ║  │
+│  ║  │         ▲              ▲              ▲                   │ ║  │
+│  ║  │         │              │              │                   │ ║  │
+│  ║  └─────────┼──────────────┼──────────────┼──────────────┘   ║  │
+│  ║            │              │              │                   ║  │
+│  ║  ┌─────────┴──────────────┴──────────────┴────────────────┐ ║  │
+│  ║  │ DATA ACCESS LAYER (Repositories & Database Interface)  │ ║  │
+│  ║  │                                                        │ ║  │
+│  ║  │  ┌──────────────────────────────────────────────────┐ │ ║  │
+│  ║  │  │ Repository Pattern (Abstract Data Access)       │ │ ║  │
+│  ║  │  │                                                  │ │ ║  │
+│  ║  │  │ • AppointmentRepository                         │ │ ║  │
+│  ║  │  │ • MedicalRecordRepository                       │ │ ║  │
+│  ║  │  │ • PrescressionRepository                        │ │ ║  │
+│  ║  │  │ • PaymentRepository                             │ │ ║  │
+│  ║  │  │ • PharmacyRepository                            │ │ ║  │
+│  ║  │  │ • AnalyticsRepository (Read-Only)               │ │ ║  │
+│  ║  │  └───────────────────┬──────────────────────────────┘ │ ║  │
+│  ║  └────────────────────────┼───────────────────────────────┘ ║  │
+│  ║                           │                                 ║  │
+│  ╚═══════════════════════════╪═════════════════════════════════╝  │
+│                              │                                    │
+│              ┌───────────────┴────────────────┐                  │
+│              │                                │                  │
+│              ▼                                ▼                   │
+│     ┌──────────────────┐            ┌──────────────────┐         │
+│     │  MySQL/PostgreSQL│            │   Redis Cache    │         │
+│     │  Primary DB      │            │   (Sessions)     │         │
+│     │                  │            │   (Permissions)  │         │
+│     │ • Users          │            │   (Queries)      │         │
+│     │ • Appointments   │            │                  │         │
+│     │ • Medical Raw    │            │   TTL: 5-60min   │         │
+│     │ • Prescriptions  │            └──────────────────┘         │
+│     │ • Payments       │                                         │
+│     │ • Pharmacy       │                                         │
+│     └──────────────────┘                                         │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │ EXTERNAL INTEGRATIONS                                    │ │
+│  │                                                           │ │
+│  │  • Payment Gateway (Stripe, PayPal)                     │ │
+│  │  • SMS Service (Firebase, Twilio)                       │ │
+│  │  • Email Service (SendGrid, Mailgun)                    │ │
+│  │  • Pharmacy APIs (3rd party)                            │ │
+│  │  • Insurance Provider APIs                              │ │
+│  │  • Analytics (Google Analytics, Custom)                 │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+---
+
+2. BOUNDED CONTEXT DIAGRAM (DDD Boundaries)
+----------------------------
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         MEDITRACK PLATFORM                              │
+│                                                                         │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │ BOUNDED CONTEXT: USER & IDENTITY MANAGEMENT                   │  │
+│  ├────────────────────────────────────────────────────────────────┤  │
+│  │ Ubiquitous Language:                                           │  │
+│  │ • User, Role, Permission, Active Status, Audit Log            │  │
+│  │                                                                │  │
+│  │ Entities:                                                      │  │
+│  │ • User (Patient, Doctor, Pharmacist, Admin)                   │  │
+│  │ • Role ↔ Permission (many-to-many)                           │  │
+│  │ • AuditLog (security events)                                 │  │
+│  │                                                                │  │
+│  │ Services:                                                      │  │
+│  │ • UserService (create, update, delete user)                  │  │
+│  │ • AuthService (login, logout, token generation)              │  │
+│  │ • RoleService (assign/revoke roles & permissions)            │  │
+│  │ • AuditService (log all security events)                     │  │
+│  │                                                                │  │
+│  │ Anti-Corruption Layer: None (Foundation Service)              │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │ BOUNDED CONTEXT: APPOINTMENT SCHEDULING                       │  │
+│  ├────────────────────────────────────────────────────────────────┤  │
+│  │ Ubiquitous Language:                                           │  │
+│  │ • Appointment, Appointment Status, Availability, Conflict     │  │
+│  │ • Doctor Schedule, Slot, Booking                             │  │
+│  │                                                                │  │
+│  │ Entities:                                                      │  │
+│  │ • Appointment (Core Entity)                                   │  │
+│  │ • AppointmentSchedule                                        │  │
+│  │ • Slot (Value Object)                                        │  │
+│  │ • AppointmentValidator (Business Rules)                      │  │
+│  │                                                                │  │
+│  │ Services:                                                      │  │
+│  │ • AppointmentService (book, reschedule, cancel)              │  │
+│  │ • AvailabilityService (check doctor availability)            │  │
+│  │ • NotificationService (send reminders & notifications)       │  │
+│  │                                                                │  │
+│  │ Depends On:                                                    │  │
+│  │ → User & Identity (for doctor/patient validation)            │  │
+│  │ → Notification Context (for alerts)                          │  │
+│  │                                                                │  │
+│  │ Anti-Corruption Layer:                                        │  │
+│  │ • UserAdapter (abstract User entity for this context)        │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │ BOUNDED CONTEXT: CLINICAL & MEDICAL RECORDS (EHR)             │  │
+│  ├────────────────────────────────────────────────────────────────┤  │
+│  │ Ubiquitous Language:                                           │  │
+│  │ • Medical Record, Lab Result, Diagnosis, Treatment,           │  │
+│  │   Prescription, Medication                                    │  │
+│  │                                                                │  │
+│  │ Entities:                                                      │  │
+│  │ • MedicalRecord (Core - immutable after creation)            │  │
+│  │ • LabResult                                                    │  │
+│  │ • Prescription                                                │  │
+│  │ • ClinicalNote                                                │  │
+│  │                                                                │  │
+│  │ Services:                                                      │  │
+│  │ • MedicalRecordService (create, retrieve, export)            │  │
+│  │ • PrescriptionService (create, approve, track)               │  │
+│  │ • LabResultService (upload, process, notify)                 │  │
+│  │ • AccessControlService (HIPAA compliance)                    │  │
+│  │                                                                │  │
+│  │ Depends On:                                                    │  │
+│  │ → User & Identity (for access control)                       │  │
+│  │ → Appointment (for appointment reference)                    │  │
+│  │                                                                │  │
+│  │ Anti-Corruption Layer:                                        │  │
+│  │ • EncryptionAdapter (encrypt PII at rest)                    │  │
+│  │ • ComplianceAdapter (HIPAA specific requirements)            │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │ BOUNDED CONTEXT: PHARMACY & DRUG STOCK MANAGEMENT             │  │
+│  ├────────────────────────────────────────────────────────────────┤  │
+│  │ Ubiquitous Language:                                           │  │
+│  │ • Drug, DrugStock, Pharmacy, Reorder, Expiry,                │  │
+│  │   PrescriptionOrder, StockMutation                           │  │
+│  │                                                                │  │
+│  │ Entities:                                                      │  │
+│  │ • Pharmacy (Aggregate Root)                                   │  │
+│  │ • DrugStock (Stock per pharmacy)                              │  │
+│  │ • Drug (Reference)                                            │  │
+│  │ • InventoryTransaction (Audit Trail)                         │  │
+│  │ • PrescriptionOrder                                           │  │
+│  │                                                                │  │
+│  │ Services:                                                      │  │
+│  │ • PharmacyService (inventory management)                      │  │
+│  │ • DrugStockService (track, reorder, expire)                  │  │
+│  │ • PrescriptionOrderService (fulfill orders)                  │  │
+│  │ • ReorderService (automatic reordering logic)                │  │
+│  │ • ExpiryService (alert & remove expired drugs)               │  │
+│  │                                                                │  │
+│  │ Depends On:                                                    │  │
+│  │ → Clinical (for prescription data)                            │  │
+│  │ → User & Identity (for pharmacist info)                      │  │
+│  │                                                                │  │
+│  │ Anti-Corruption Layer:                                        │  │
+│  │ • PharmacyAPIAdapter (external pharmacy integrations)       │  │
+│  │ • DrugDatabaseAdapter (drug reference data)                  │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │ BOUNDED CONTEXT: PAYMENT & FINANCIAL MANAGEMENT               │  │
+│  ├────────────────────────────────────────────────────────────────┤  │
+│  │ Ubiquitous Language:                                           │  │
+│  │ • Payment, Invoice, Transaction, Insurance Claim, Amount,     │  │
+│  │   PaymentStatus, PaymentMethod                               │  │
+│  │                                                                │  │
+│  │ Entities:                                                      │  │
+│  │ • Payment (Aggregate Root)                                    │  │
+│  │ • Invoice                                                      │  │
+│  │ • InsuranceClaim                                              │  │
+│  │ • Transaction (Immutable)                                     │  │
+│  │                                                                │  │
+│  │ Services:                                                      │  │
+│  │ • PaymentService (process, capture, refund)                  │  │
+│  │ • InvoiceService (generate, send, track)                     │  │
+│  │ • InsuranceClaimService (submit, track, process)             │  │
+│  │ • TransactionService (log all financial transactions)        │  │
+│  │ • PaymentGatewayAdapter (Stripe, PayPal, etc)               │  │
+│  │                                                                │  │
+│  │ Depends On:                                                    │  │
+│  │ → Appointment (for payment reference)                        │  │
+│  │ → User & Identity (for patient/doctor info)                  │  │
+│  │                                                                │  │
+│  │ Anti-Corruption Layer:                                        │  │
+│  │ • PaymentGatewayAdapter (abstract payment processing)        │  │
+│  │ • MoneyAdapter (currency conversion, rounding rules)         │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │ BOUNDED CONTEXT: ANALYTICS & REPORTING                        │  │
+│  ├────────────────────────────────────────────────────────────────┤  │
+│  │ Ubiquitous Language:                                           │  │
+│  │ • Metric, KPI, Report, Trend, Forecast, Insight,             │  │
+│  │   PatientOutcome, DoctorPerformance                          │  │
+│  │                                                                │  │
+│  │ Entities:                                                      │  │
+│  │ • PatientOutcomeMetric                                        │  │
+│  │ • DoctorPerformanceMetric                                    │  │
+│  │ • DrugUsageAnalytic                                           │  │
+│  │ • Report (Read-Only Projections)                             │  │
+│  │                                                                │  │
+│  │ Services:                                                      │  │
+│  │ • AnalyticsService (aggregate metrics)                        │  │
+│  │ • ReportingService (generate on-demand reports)              │  │
+│  │ • ForecastingService (predict trends)                        │  │
+│  │ • MetricsCollectorService (listen to domain events)          │  │
+│  │                                                                │  │
+│  │ Depends On: (Read-Only)                                       │  │
+│  │ → All contexts (consume domain events)                       │  │
+│  │                                                                │  │
+│  │ Anti-Corruption Layer:                                        │  │
+│  │ • Event Subscriber (consume events from other contexts)      │  │
+│  │ • DataWarehouseAdapter (analytics-specific schema)           │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+
+---
+
+3. DATA FLOW DIAGRAM
+----------------------------
+
+APPOINTMENT BOOKING FLOW:
+
+  User Request
+      │
+      ▼
+  ┌─────────────────────────┐
+  │ API Gateway             │
+  │ • Rate Limiting         │
+  │ • Request Validation    │
+  └────────┬────────────────┘
+           │
+      ▼
+  ┌─────────────────────────────────────────────────────────┐
+  │ Authentication & Authorization Middleware               │
+  │ • JWT Token Validation                                  │
+  │ • Role Check (patient_can_book flag)                    │
+  └────────────┬────────────────────────────────────────────┘
+               │
+           ▼
+  ┌────────────────────────────────────────────────┐
+  │ AppointmentController::store()                 │
+  │ • Parse Request                                │
+  │ • Delegate to Service                          │
+  └─────────┬──────────────────────────────────────┘
+            │
+        ▼
+  ┌──────────────────────────────────────────────────────────┐
+  │ AppointmentService::bookAppointment()                    │
+  │ • Validate doctor_id, patient_id                         │
+  │ • Check doctor availability                              │
+  │ • Check conflict in appointment schedule                 │
+  │ • Validate time (min 24 hours notice)                    │
+  └──────┬───────────────────────────────────────────────────┘
+         │
+     ▼
+  ┌──────────────────────────────────────────┐
+  │ AppointmentValidator::validate()          │
+  │ • Business rules validation               │
+  │ • Appointment not in past                 │
+  │ • Doctor working hours                    │
+  └────┬─────────────────────────────────────┘
+       │
+   ┌───┴───────────────────────────────────┐
+   │ Validation Passed?                    │
+   └───┬─────────────────────┬─────────────┘
+       │ NO                  │ YES
+       │                     ▼
+       │         ┌───────────────────────────────────┐
+       │         │ AppointmentRepository::create()   │
+       │         │ • Format data                      │
+       │         │ • Insert into DB                   │
+       │         │ • Generate appointment_id          │
+       │         └───────┬─────────────────────────────┘
+       │                 │
+       │             ▼
+       │         ┌───────────────────────────────┐
+       │         │ Database Transaction          │
+       │         │ • Lock appointment table      │
+       │         │ • Verify no conflicts         │
+       │         │ • Insert record               │
+       │         │ • Commit                      │
+       │         └───────┬─────────────────────────┘
+       │                 │
+       │             ▼
+       │         ┌───────────────────────────────────┐
+       │         │ Event: AppointmentCreated         │
+       │         │ • Publish for listeners           │
+       │         │ (notifications, analytics)        │
+       │         └───────┬─────────────────────────────┘
+       │                 │
+       │             ▼
+       │         ┌───────────────────────────────────┐
+       │         │ Notification Queue                │
+       │         │ • Add to job queue                │
+       │         │ • Send confirmation to patient    │
+       │         │ • Send reminder to doctor         │
+       │         └───────┬─────────────────────────────┘
+       │                 │
+       │             ▼
+       │         ┌───────────────────────────────┐
+       │         │ Cache Invalidation            │
+       │         │ • Clear doctor availability   │
+       │         │ • Clear user appointment list │
+       │         └───────┬──────────────────────┘
+       │                 │
+       ▼                 ▼
+  ┌──────────────────────────────────┐
+  │ Response to Client                │
+  │ • Success: appointment_id         │
+  │ • Error: error message            │
+  └──────────────────────────────────┘
+           │
+           ▼
+       Client
+       • Display confirmation
+       • Show appointment details
+       • Offer reschedule/cancel options
+
+---
+
+4. EXTERNAL SYSTEM INTEGRATION DIAGRAM
+----------------------------
+
+MediTrack Platform
+       │
+       ├──→ │ PAYMENT GATEWAY │────────────┬──────────┐
+       │    │ (Stripe/PayPal) │            │          │
+       │    └─────────────────┘      Process Payment  Webhook
+       │           ▲                      │          │
+       │           │                      ▼          │
+       │           └──────────────────────────────────┘
+       │                     │
+       │                     ▼
+       │              Credit Card Token
+       │                  & Status
+       │
+       ├──→ │ SMS/EMAIL SERVICE │
+       │    │ (Twilio/SendGrid) │
+       │    └───────────────────┘
+       │           ▲
+       │           │
+       │      Notification Request
+       │      (appointment reminder,
+       │       payment receipt, etc)
+       │
+       ├──→ │ PHARMACY API │
+       │    │ (3rd Party)  │
+       │    └──────────────┘
+       │           ▲
+       │           │
+       │      Query Stock / Place Order
+       │
+       ├──→ │ INSURANCE PROVIDER │
+       │    │ API                │
+       │    └────────────────────┘
+       │           ▲
+       │           │
+       │      Claim Data / Status Check
+       │
+       └──→ │ ANALYTICS │
+            │ (Google Analytics,Mixpanel)
+            └────────────────────────────┘
+                     ▼
+                User Events, Metrics
+
+
+SECURITY BOUNDARIES:
+
+┌─────────────────────────────────────────────────────────┐
+│ Internet (Public)                                       │
+│                                                         │
+│ ┌───────────────────────────┐                          │
+│ │ Clients                   │                          │
+│ │ • Web Browser             │                          │
+│ │ • Mobile App              │                          │
+│ │ • 3rd Party APIs          │                          │
+│ └────────┬──────────────────┘                          │
+│          │                                             │
+└──────────┼─────────────────────────────────────────────┘
+           │ HTTPS/TLS Only
+           ▼
+┌─────────────────────────────────────────────────────────┐
+│ DMZ (Protected)                                         │
+│                                                         │
+│ ┌──────────────────────────────────────┐               │
+│ │ API Gateway / Load Balancer          │               │
+│ │ • SSL/TLS Termination                │               │
+│ │ • Rate Limiting                      │               │
+│ │ • IP Whitelisting (for 3rd party)    │               │
+│ └────────┬──────────────────────────────┘               │
+│          │                                             │
+└──────────┼─────────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────────────────────┐
+│ Internal Network (Private)                              │
+│                                                         │
+│ ┌────────────────────────────────────────────────────┐ │
+│ │ Application Servers (Multi-node)                   │ │
+│ │ • JWT Validation                                   │ │
+│ │ • Database Connection Pool                         │ │
+│ │ • Session Management                               │ │
+│ └────────┬───────────────────────────────────────────┘ │
+│          │                                             │
+│  ┌───────┴───────┬───────────────┬────────────────┐    │
+│  │               │               │                │    │
+│  ▼               ▼               ▼                ▼    │
+│ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌─────────────┐│
+│ │MySQL DB  │ │Redis     │ │File      │ │Message      ││
+│ │(Primary) │ │Cache     │ │Storage   │ │Queue (RabMQ)││
+│ │          │ │          │ │(S3-like) │ │             ││
+│ └──────────┘ └──────────┘ └──────────┘ └─────────────┘│
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+
+---
+
+5. DEPLOYMENT ARCHITECTURE
+----------------------------
+
+Recommended Deployment Stack:
+
+┌────────────────────────────────────────────────────────────┐
+│ CLOUD INFRASTRUCTURE (AWS / Azure / GCP)                   │
+├────────────────────────────────────────────────────────────┤
+│                                                            │
+│ ┌─────────────────────────────────────────────────────┐  │
+│ │ CDN (CloudFront / CloudFlare)                       │  │
+│ │ • Static assets caching                             │  │
+│ │ • Global content delivery                           │  │
+│ │ • DDoS protection                                   │  │
+│ └──────────┬───────────────────────────────────────────┘  │
+│            │                                              │
+│ ┌──────────┴──────────────────────────────────────────┐  │
+│ │ Application Load Balancer (ALB)                     │  │
+│ │ • HTTPS/TLS Termination                            │  │
+│ │ • Auto-scaling group management                     │  │
+│ │ • Health checks                                     │  │
+│ │ • Multi-region failover (optional)                  │  │
+│ └──────────┬──────────────────────────────────────────┘  │
+│            │                                              │
+│ ┌──────────┴──────────────────────────────────────────┐  │
+│ │ Auto-Scaling Group (ASG)                            │  │
+│ │ • Min: 2 instances (HA)                             │  │
+│ │ • Max: 10 instances (scalability)                   │  │
+│ │ • Target CPU: 70%                                   │  │
+│ │ • Health Check: Every 30 seconds                    │  │
+│ └──────────┬──────────────────────────────────────────┘  │
+│            │                                              │
+│ ┌──────────┴──────────────────────────────────────────┐  │
+│ │ Application Instances (Docker Containers)           │  │
+│ │ • MediTrack App (PHP 8.3 + Laravel)                │  │
+│ │ • Environment: Production hardened                  │  │
+│ │ • Log forwarding: CloudWatch / ELK                 │  │
+│ │ • Performance: <100ms response time SLA             │  │
+│ └──────────┬──────────────────────────────────────────┘  │
+│            │                                              │
+│ ┌──────────────────────────────────────────────────────┐ │
+│ │ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ │ │
+│ │ │ RDS MySQL    │ │ ElastiCache  │ │ S3 Storage   │ │ │
+│ │ │ • Multi-AZ   │ │ • Redis      │ │ • Medical    │ │ │
+│ │ │ • Backup     │ │ • Replication│ │   Records    │ │ │
+│ │ │ • Read Rep   │ │              │ │ • Reports    │ │ │
+│ │ │              │ │              │ │              │ │ │
+│ │ └──────────────┘ └──────────────┘ └──────────────┘ │ │
+│ │                                                      │ │
+│ │ ┌──────────────┐ ┌──────────────┐                  │ │
+│ │ │ SQS Queue    │ │ Kinesis      │                  │ │
+│ │ │ • Job Queue  │ │ • Log Stream │                  │ │
+│ │ │ • Async Work │ │ • Analytics  │                  │ │
+│ │ │              │ │              │                  │ │
+│ │ └──────────────┘ └──────────────┘                  │ │
+│ └──────────────────────────────────────────────────────┘ │
+│                                                            │
+│ ┌──────────────────────────────────────────────────────┐ │
+│ │ Supporting Services                                 │ │
+│ │ • CloudWatch (Monitoring)                           │ │
+│ │ • SNS (Notifications)                               │ │
+│ │ • Secrets Manager (Credentials)                     │ │
+│ │ • VPC (Networking)                                  │ │
+│ │ • Security Groups (Firewall)                        │ │
+│ │ • WAF (Web Application Firewall)                    │ │
+│ │ • KMS (Encryption)                                 │ │
+│ └──────────────────────────────────────────────────────┘ │
+│                                                            │
+└────────────────────────────────────────────────────────────┘
+
+---
+
+================================================================================
+                            END OF SECTION 4
+================================================================================
