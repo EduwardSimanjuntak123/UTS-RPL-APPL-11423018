@@ -1,0 +1,1077 @@
+================================================================================
+        LAPORAN PERFORMANCE BOTTLENECKS & MITIGATION - MediTrack
+        Tanggal: 25 Maret 2026
+        Status: Analisis & Strategi Mitigasi
+================================================================================
+
+BAGIAN 6: PERFORMANCE BOTTLENECKS & MITIGATION STRATEGIES
+================================================================================
+
+1. IDENTIFIKASI BOTTLENECK POTENSIAL
+----------------------------
+
+BOTTLENECK 1: DATABASE QUERY PERFORMANCE
+──────────────────────────────────────────
+
+Deskripsi:
+• Medical record queries dengan JOIN 3+ tables
+• Patient appointment history with pagination
+• Prescription lookup by patient
+• Analytics aggregation queries
+
+Manifestasi:
+- Response time >2 detik untuk queries kompleks
+- Doctor dashboard loading lambat (100+ patients)
+- Analytics report generation timeout (>30 min)
+- High CPU usage pada database server
+
+Root Cause Analysis:
+┌──────────────────────────────────────────┐
+│ Missing Indexes                          │
+├──────────────────────────────────────────┤
+│ • Appointment table: no index on date    │
+│ • MedicalRecord: no index on patient_id  │
+│ • Prescription: no composite index       │
+│ • Payment: no index on status            │
+│                                          │
+│ Impact: Full table scan untuk setiap     │
+│ query → O(n) complexity → linear slowdown│
+└──────────────────────────────────────────┘
+
+┌──────────────────────────────────────────┐
+│ N+1 Query Problem                        │
+├──────────────────────────────────────────┤
+│ Code:                                    │
+│ $appointments = Appointment::all();      │
+│ foreach ($appointments as $appt) {       │
+│   $patient = $appt->patient;  // N+1!   │
+│   $doctor = $appt->doctor;    // N+1!   │
+│ }                                        │
+│                                          │
+│ Database Calls: 1 + N queries           │
+│ Better: use eager loading with ->with() │
+└──────────────────────────────────────────┘
+
+┌──────────────────────────────────────────┐
+│ Inefficient Joins                        │
+├──────────────────────────────────────────┤
+│ SELECT * FROM appointments a             │
+│ LEFT JOIN patients p ON a.patient_id = p.id
+│ LEFT JOIN doctors d ON a.doctor_id = d.id
+│ LEFT JOIN medical_records m ON  │
+│   a.id = m.appointment_id                │
+│ WHERE a.created_at >= DATE_SUB(NOW(),..
+│ LIMIT 1000;                              │
+│                                          │
+│ Problem: 4-way JOIN over 1000 rows      │
+│ Cost: O(n^4) in worst case              │
+└──────────────────────────────────────────┘
+
+MITIGASI BOTTLENECK 1: DATABASE OPTIMIZATION
+──────────────────────────────────────────────
+
+A. DATABASE INDEXING STRATEGY:
+
+Tipe Index & Kegunaan:
+┌────────────────────────────────────────────────────────┐
+│ Single Column Indexes (Frequently Filtered)            │
+├────────────────────────────────────────────────────────┤
+│ • appointments.doctor_id (filter by doctor)            │
+│ • appointments.patient_id (filter by patient)          │
+│ • medical_records.patient_id (get patient history)    │
+│ • prescriptions.status (filter by status)              │
+│ • payments.status (for payment dashboard)              │
+│ • users.email (for unique constraint, login)          │
+│ • drug_stocks.pharmacy_id (inventory lookup)           │
+└────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────┐
+│ Composite Indexes (Multi-Column Filtering)             │
+├────────────────────────────────────────────────────────┤
+│ • appointments (doctor_id, appointment_date)           │
+│   → Optimize: GET appointments for doctor on date     │
+│                                                        │
+│ • appointments (patient_id, status, created_at)       │
+│   → Optimize: GET patient recent appointments (pending)│
+│                                                        │
+│ • medical_records (patient_id, created_at DESC)       │
+│   → Optimize: GET latest N medical records            │
+│                                                        │
+│ • payments (patient_id, status, created_at)           │
+│   → Optimize: GET unpaid invoices for patient         │
+│                                                        │
+│ • inventory_transactions (pharmacy_id, type, date)    │
+│   → Optimize: GET stock movements for period          │
+└────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────┐
+│ Range & Date Indexes (Time-Based Queries)              │
+├────────────────────────────────────────────────────────┤
+│ • appointments.appointment_date                        │
+│   → Range queries: appointments between dates         │
+│                                                        │
+│ • medical_records.created_at                          │
+│   → Analytics: aggregate data by time period          │
+│                                                        │
+│ • payments.paid_at                                     │
+│   → Revenue reporting: total payment per month         │
+└────────────────────────────────────────────────────────┘
+
+Index Creation SQL:
+
+-- Single indexes
+CREATE INDEX idx_appointments_doctor ON appointments(doctor_id);
+CREATE INDEX idx_appointments_patient ON appointments(patient_id);
+CREATE INDEX idx_medical_records_patient ON medical_records(patient_id);
+CREATE INDEX idx_prescriptions_patient ON prescriptions(patient_id);
+CREATE INDEX idx_users_email ON users(email) UNIQUE;
+
+-- Composite indexes
+CREATE INDEX idx_appointments_doctor_date 
+  ON appointments(doctor_id, appointment_date DESC);
+
+CREATE INDEX idx_appointments_patient_status_date 
+  ON appointments(patient_id, status, created_at DESC);
+
+CREATE INDEX idx_medical_records_patient_date 
+  ON medical_records(patient_id, created_at DESC);
+
+-- Range indexes for time-based queries
+CREATE INDEX idx_appointments_date ON appointments(appointment_date);
+CREATE INDEX idx_medical_records_created ON medical_records(created_at);
+CREATE INDEX idx_payments_paid_at ON payments(paid_at);
+
+Expected Impact:
+✓ Query time reduction: 80-95% untuk indexed queries
+✓ Database CPU: -60%
+✓ Connection pool relief: fewer long-running queries
+
+
+B. N+1 PROBLEM RESOLUTION:
+
+BEFORE (Bad - N+1 queries):
+────────────────────────────
+$appointments = Appointment::all();  // 1 query
+foreach ($appointments as $appt) {
+  $patient = $appt->patient;  // N queries (1 per appointment)
+  $doctor = $appt->doctor;    // N queries (1 per appointment)
+}
+Total: 1 + 2N queries
+
+AFTER (Good - Eager Loading):
+───────────────────────────────
+$appointments = Appointment::with('patient', 'doctor')
+  ->where('appointment_date', '>=', now())
+  ->paginate(20);  // 3 queries total
+
+foreach ($appointments as $appt) {
+  $patient = $appt->patient;  // cached
+  $doctor = $appt->doctor;    // cached
+}
+Total: 3 queries
+
+Query Count Reduction: 
+- Before: 1 + 2*N (e.g., N=100 → 201 queries)
+- After: 3 queries
+- Improvement: 67x faster for 100 appointments
+
+
+C. QUERY OPTIMIZATION TECHNIQUES:
+
+Technique 1: Select Only Needed Columns
+
+BEFORE:
+SELECT * FROM appointments WHERE doctor_id = ?;
+// Returns all 15 columns, many unused
+
+AFTER:
+SELECT id, patient_id, appointment_date, status 
+FROM appointments 
+WHERE doctor_id = ?;
+// Return only 4 needed columns
+// Network bandwidth: 73% reduction
+// Memory usage: 73% reduction
+
+
+Technique 2: Use Pagination for Large Result Sets
+
+BEFORE:
+$all_records = MedicalRecord::where('patient_id', $id)->get();
+// If patient has 10,000 records:
+// Load entire table into memory → out of memory error
+
+AFTER:
+$records = MedicalRecord::where('patient_id', $id)
+  ->paginate(20);  // Load 20 per page
+// Memory: constant regardless of total records
+// Network: only send what's needed
+
+
+Technique 3: Use Database Aggregation Functions
+
+BEFORE (Application-level aggregation):
+$payments = Payment::where('patient_id', $id)->get();
+$total = 0;
+foreach ($payments as $payment) {
+  if ($payment->status === 'paid') {
+    $total += $payment->amount;
+  }
+}
+// N iterations + memory for all payments
+
+AFTER (Database-level aggregation):
+$total = Payment::where('patient_id', $id)
+  ->where('status', 'paid')
+  ->sum('amount');
+// Single atomic operation
+// Network: 1 result instead of N rows
+// Memory: single value instead of array
+
+
+Technique 4: Defer Heavy Computations
+
+BEFORE:
+$metrics = Doctor::with('appointments', 'medicalRecords', 
+           'prescriptions', 'patients')->get();
+// Load everything at once: slow, memory-heavy
+
+AFTER:
+$doctors = Doctor::get();  // lightweight
+// Load details only when needed via lazy loading chunks
+$doctors->each(function($doctor) {
+  $metrics = $doctor->calculateMetrics();
+  // OR queue for async calculation
+});
+
+
+─────────────────────────────────────────────────────────
+
+
+BOTTLENECK 2: CACHING & SESSION MANAGEMENT
+────────────────────────────────────────────
+
+Deskripsi:
+• Doctor permission checks on every request
+• User role verification on each API call
+• Repeated database queries untuk same data
+• Session storage dalam database (slow)
+
+Manifestasi:
+- Response time increases with concurrent users
+- Database connection pool exhaustion
+- Slow login process (query per user)
+- Authorization delays on protected routes
+
+Root Cause Analysis:
+┌────────────────────────────────────────────────────┐
+│ Missing Caching Layer                              │
+├────────────────────────────────────────────────────┤
+│ Every permission check → database query            │
+│ Every user profile access → database query         │
+│ Appointment availability → recalculate every time  │
+│                                                    │
+│ For 1000 concurrent users with 10 req/min each:  │
+│ • 10,000 permission queries/min → ONE query!     │
+│ • If cached (TTL 5min): 2 queries instead        │
+│ • Reduction: 9,998 queries/min saved             │
+└────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────┐
+│ Database-backed Session Store                      │
+├────────────────────────────────────────────────────┤
+│ Default: Store session in sessions table           │
+│ Cost per session read: 1 database query            │
+│ Session lifespan: 2 hours                          │
+│ Concurrent sessions: ~500                          │
+│                                                    │
+│ Impact: 500 * 10 req/min = 5000 session reads     │
+│ If read from DB: 5000 queries/min                 │
+│ If cached in Redis: <10ms per read                │
+└────────────────────────────────────────────────────┘
+
+MITIGASI BOTTLENECK 2: CACHING STRATEGY
+────────────────────────────────────────
+
+A. MULTI-LAYER CACHING ARCHITECTURE:
+
+Layer 1: Application Memory Cache (In-Process)
+─────────────────────────────────────────────────
+Purpose: Immediate access, zero network latency
+Storage: PHP array, Closure binding
+TTL: Request lifecycle (static data only)
+
+Implement:
+```php
+// Cache permission during request
+class AuthMiddleware {
+  public function handle($request, $next) {
+    if (!$request->user()) {
+      return $next($request);
+    }
+    
+    // Cache permissions in request for this request
+    $perms = cache()->remember(
+      'user_perms:' . $request->user()->id,
+      now()->addMinutes(5),
+      function() use ($request) {
+        return $request->user()
+          ->roles()
+          ->with('permissions')
+          ->get()
+          ->pluck('permissions')
+          ->flatten();
+      }
+    );
+    
+    return $next($request);
+  }
+}
+```
+
+Expected Benefit:
+✓ Permission checks: <1ms (vs 50-100ms DB query)
+✓ Per-request overhead: negligible
+
+
+Layer 2: Redis Cache (Distributed)
+────────────────────────────────────
+Purpose: Shared across instances, persistent
+Storage: Redis in-memory key-value store
+TTL: 5 minutes untuk queries, 1 hour untuk user data
+
+Cache Candidates:
+┌─────────────────────────────────────────────┐
+│ Hot Data (High Read Rate)                   │
+├─────────────────────────────────────────────┤
+│ • User profiles → TTL: 1 hour               │
+│ • Doctor schedules → TTL: 15 min            │
+│ • Appointment availability → TTL: 5 min    │
+│ • Drug catalog → TTL: 24 hours              │
+│ • Permission matrix → TTL: 1 hour           │
+│ • Popular reports templates → TTL: 24h      │
+│ • Insurance provider list → TTL: 24 hours   │
+│ • System configuration → TTL: 24 hours      │
+└─────────────────────────────────────────────┘
+
+Implementation Example:
+
+```php
+// AvailabilityService.php
+class AvailabilityService {
+  public function getDoctorSchedule($doctorId, $date) {
+    $cacheKey = "doctor_schedule:{$doctorId}:{$date}";
+    
+    return cache()->remember($cacheKey, now()->addMinutes(15), function() 
+      use ($doctorId, $date) {
+      return DoctorSchedule::where('doctor_id', $doctorId)
+        ->where('schedule_date', $date)
+        ->with('slots')
+        ->get();
+    });
+  }
+  
+  public function getAvailableSlots($doctorId, $date) {
+    $schedule = $this->getDoctorSchedule($doctorId, $date);
+    $slots = $schedule->slots()->available()->get();
+    return $slots;
+  }
+}
+```
+
+Expected Benefit:
+✓ Query reduction: 90% untuk cached data
+✓ Response time: 20-50ms (vs 200-500ms DB query)
+✓ Database connection relief: 50%
+
+
+Layer 3: Browser Cache (Client-Side)
+──────────────────────────────────────
+Purpose: Instant delivery, zero server request
+Storage: Browser local storage, service worker
+TTL: Per resource type
+
+Cache Headers:
+```
+// Static assets (CSS, JS, images)
+Cache-Control: public, max-age=31536000  // 1 year
+ETag: W/"abc123"  // Cache busting
+
+// API responses (read-only)
+Cache-Control: private, max-age=300  // 5 minutes
+ETag: W/"def456"
+
+// HTML pages
+Cache-Control: no-cache  // Revalidate always
+```
+
+Expected Benefit:
+✓ Page load time: 50-80% reduction
+✓ Server traffic: 30% reduction
+✓ Mobile experience: significantly improved
+
+
+B. CACHE INVALIDATION STRATEGY:
+
+Problem: Stale cache data setelah update
+
+Solution: Event-based cache invalidation
+
+```php
+// When appointment is booked
+Event::dispatch(new AppointmentCreated($appointment));
+
+// Listener invalidates related caches
+AppointmentEventListener::onAppointmentCreated(
+  AppointmentCreated $event
+) {
+  $appt = $event->appointment;
+  
+  // Invalidate doctor schedule cache
+  cache()->forget("doctor_schedule:{$appt->doctor_id}:*");
+  
+  // Invalidate patient appointment list
+  cache()->forget("patient_appointments:{$appt->patient_id}");
+  
+  // Invalidate doctor availability
+  cache()->forget("doctor_available:{$appt->doctor_id}");
+}
+```
+
+Time to cache expiration:
+¬ Appointment schedule: 5-15 min (quick changes needed)
+¬ Doctor profile: 1 hour (slow-changing)
+¬ Drug catalog: 24 hours (static, monthly updates)
+¬ Reports: on-demand generation (never cache)
+
+
+C. SESSION STORE OPTIMIZATION:
+
+BEFORE (Database sessions):
+──────────────────────────
+driver: 'database'
+table: 'sessions'
+
+Cost per request:
+→ 1 database query to read session
+→ 1 database query to write session updates
+Total: 2 database queries per request
+Storage: 500 sessions * ~5KB = 2.5MB database
+
+AFTER (Redis sessions):
+──────────────────────
+driver: 'redis'
+connection: 'default'
+
+Cost per request:
+→ 1 in-memory Redis read (<1ms)
+→ 1 in-memory Redis write (<1ms)
+Total: 2 Redis operations (in-memory)
+Storage: 500 sessions * ~5KB = 2.5MB Redis RAM
+
+Improvement:
+✓ Response time: 100-200x faster (ms vs 10-50ms)
+✓ Database relief: eliminate all session queries
+✓ Scalability: handle 10,000+ concurrent sessions
+
+Configuration:
+```php
+// config/session.php
+return [
+  'driver' => env('SESSION_DRIVER', 'redis'),
+  'connection' => env('SESSION_CONNECTION', 'cache'),
+  'lifetime' => 120,  // 2 hours
+  'expire_on_close' => false,
+];
+```
+
+─────────────────────────────────────────────────────
+
+
+BOTTLENECK 3: EXTERNAL API INTEGRATION BOTTLENECK
+───────────────────────────────────────────────────
+
+Deskripsi:
+• Payment gateway calls (Stripe, PayPal)
+• Insurance provider API queries
+• SMS/Email delivery service
+• Pharmacy stock checking
+• Lab result integration
+
+Manifestasi:
+- Appointment confirmation waiting for payment API
+- Payment processing timeout causing failed transactions
+- SMS notifications delivered 5+ minutes late
+- User experience: "spinning wheel" during payment
+
+Root Cause Analysis:
+┌──────────────────────────────────────────────────────┐
+│ Synchronous External API Calls                       │
+├──────────────────────────────────────────────────────┤
+│ User clicks "Pay Now"                                │
+│   ↓                                                  │
+│ AppointmentController::pay()                         │
+│   ↓                                                  │
+│ PaymentService::processPayment()                     │
+│   ↓                                                  │
+│ Stripe::charge() sync → 2-5 SECONDS WAIT             │
+│   ↓                                                  │
+│ Payment result                                       │
+│   ↓                                                  │
+│ Return response to user                              │
+│                                                      │
+│ Problem: User is BLOCKED waiting for Stripe        │
+│ If Stripe is down: transaction fails               │
+│ Connection limit: 2-5 sec per payment               │
+└──────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────┐
+│ Network Latency                                      │
+├──────────────────────────────────────────────────────┤
+│ MediTrack server location: Indonesia                 │
+│ Stripe servers location: USA                         │
+│ Network latency: ~250-300ms per round-trip          │
+│                                                      │
+│ Stripe API call structure:                           │
+│ 1. HTTP connection: 50ms                            │
+│ 2. Request transmission: 50ms                       │
+│ 3. Processing: 500ms-2000ms                        │
+│ 4. Response transmission: 50ms                      │
+│ Total: 650ms-2100ms PER CALL                        │
+│                                                      │
+│ If user retries due to perceived "hang": 2-4 calls │
+│ Total wait time: 2-8 seconds                        │
+└──────────────────────────────────────────────────────┘
+
+MITIGASI BOTTLENECK 3: ASYNC PROCESSING
+─────────────────────────────────────────
+
+A. ASYNCHRONOUS JOB PROCESSING:
+
+Architecture:
+
+User Request
+    │
+    ├─→ (Fast) Create Payment record with status=pending
+    │
+    ├─→ (Fast) Queue async job: ProcessPaymentJob
+    │
+    └─→ (Fast) Return response: "Processing..."
+          ↓
+     ┌────────────────────────────┐
+     │ Response sent to user      │
+     │ (< 500ms total)            │
+     └────────────────────────────┘
+
+
+Meanwhile (Background):
+    
+ProcessPaymentJob
+    │
+    ├─→ Call Stripe API (synchronous, no timeout)
+    │
+    ├─→ Update Payment status
+    │
+    ├─→ Send notification to user
+    │
+    └─→ Job complete
+
+
+Implementation:
+
+```php
+// PaymentController.php
+public function pay(PaymentRequest $request) {
+  $payment = Payment::create([
+    'patient_id' => $request->user()->id,
+    'appointment_id' => $request->appointment_id,
+    'amount' => $request->amount,
+    'status' => 'pending'
+  ]);
+  
+  // Dispatch async job
+  ProcessPaymentJob::dispatch($payment);
+  
+  // Return immediately (< 100ms)
+  return response()->json([
+    'status' => 'processing',
+    'payment_id' => $payment->id
+  ]);
+}
+
+// ProcessPaymentJob.php
+class ProcessPaymentJob implements ShouldQueue {
+  public function handle(Payment $payment) {
+    try {
+      $result = Stripe::charge([
+        'amount' => $payment->amount,
+        'currency' => 'IDR'
+      ]);
+      
+      $payment->update([
+        'status' => 'paid',
+        'transaction_id' => $result->id
+      ]);
+      
+      // Send notification
+      Notification::send(
+        $payment->patient,
+        new PaymentConfirmed($payment)
+      );
+      
+    } catch (Exception $e) {
+      $payment->update([
+        'status' => 'failed',
+        'error' => $e->getMessage()
+      ]);
+      
+      // Send error notification
+      Notification::send(
+        $payment->patient,
+        new PaymentFailed($payment)
+      );
+    }
+  }
+}
+```
+
+Expected Benefit:
+✓ User response time: 500ms (vs 2-8 seconds)
+✓ No timeout on external API failures
+✓ Retry mechanism built-in
+
+
+B. RETRY WITH EXPONENTIAL BACKOFF:
+
+```php
+class ProcessPaymentJob implements ShouldQueue {
+  public $tries = 5;  // Retry up to 5 times
+  public $backoff = [1, 5, 15, 60, 300];  // seconds
+  
+  public function failed() {
+    // After 5 retries, notify support team
+    Mail::send(new PaymentFailedAlert($this->payment));
+  }
+}
+```
+
+Retry schedule:
+Attempt 1: Immediate
+Attempt 2: 1 second after first attempt fails
+Attempt 3: 5 seconds later
+Attempt 4: 15 seconds later
+Attempt 5: 60 seconds later
+Attempt 6: 5 minutes later
+Total: 381 seconds (6+ minutes to give up)
+
+Expected Benefit:
+✓ Transient failures recovered automatically
+✓ Network hiccups handled gracefully
+✓ User doesn't need to retry manually
+
+
+C. WEBHOOK FOR STATUS UPDATES:
+
+Stripe sends webhook → "Payment completed"
+    │
+    ▼
+Listen for webhook
+    │
+    ├─→ Verify webhook signature
+    │
+    ├─→ Update Payment status
+    │
+    ├─→ Send notification to patient
+    │
+    └─→ Log transaction
+
+This ensures payment status always up-to-date
+regardless of job queue delay.
+
+─────────────────────────────────────────────────────
+
+
+BOTTLENECK 4: ANALYTICS & REPORTING QUERIES
+──────────────────────────────────────────────
+
+Deskripsi:
+• Aggregating 100,000+ appointment records
+• Computing doctor performance metrics
+• Drug usage trend analysis
+• Patient outcome calculations
+• Dashboard metrics generation
+
+Manifestasi:
+- Report generation times: 5-10 minutes
+- Dashboard slow to load
+- Analytics server CPU: 100%
+- Memory usage: high when generating reports
+
+Root Cause Analysis:
+┌────────────────────────────────────────────┐
+│ Complex Aggregation Queries                │
+├────────────────────────────────────────────┤
+│ SELECT d.id, d.name,                       │
+│   COUNT(a.id) as total_appointments,       │
+│   AVG(r.rating) as avg_rating,            │
+│   SUM(p.amount) as total_revenue          │
+│ FROM doctors d                             │
+│ LEFT JOIN appointments a ON d.id = a.dr... │
+│ LEFT JOIN ratings r ON a.id = r.appt_id   │
+│ LEFT JOIN payments p ON a.id = p.appt_id  │
+│ WHERE a.created_at >= DATE_SUB(NOW(), ...) │
+│ GROUP BY d.id HAVING COUNT(a.id) > 10     │
+│ ORDER BY avg_rating DESC                   │
+│ LIMIT 100;                                 │
+│                                            │
+│ Complexity: O(appointments² * payments)   │
+│ On 100,000+ records: VERY SLOW            │
+└────────────────────────────────────────────┘
+
+MITIGASI BOTTLENECK 4: ANALYTICS OPTIMIZATION
+──────────────────────────────────────────────
+
+A. MATERIALIZED VIEWS / DENORMALIZATION:
+
+Instead of computing metrics on-demand:
+
+BEFORE (Compute every time):
+```php
+// On every dashboard load:
+$metrics = DB::select("
+  SELECT ... aggregation queries ...
+  FROM appointments
+  LEFT JOIN ... multiple joins ...
+  WHERE ...
+  GROUP BY ...
+");
+// Takes 30-60 seconds
+```
+
+AFTER (Pre-calculated):
+```php
+// Pre-calculate metrics once per day
+// Store in dedicated analytics table
+
+// On dashboard load:
+$metrics = DoctorMetric::where('date', today())->get();
+// Returns in 10ms (single table lookup)
+```
+
+Implementation:
+```php
+// Daily scheduler job
+Artisan::call('metrics:compute-daily');
+
+// Or run every hour for more fresh data
+class ComputeDailyMetricsJob implements ShouldQueue {
+  public function handle() {
+    $date = now()->startOfDay();
+    
+    $metrics = DB::select("
+      SELECT d.id,
+        COUNT(*) as appointment_count,
+        AVG(rating) as avg_rating,
+        SUM(amount) as revenue
+      FROM doctors d
+      LEFT JOIN appointments a ON d.id = a.doctor_id
+        AND DATE(a.created_at) = ?
+      ... rest of query ...
+    ", [$date]);
+    
+    // Store in DoctorMetric table
+    foreach ($metrics as $m) {
+      DoctorMetric::updateOrCreate(
+        ['doctor_id' => $m->id, 'date' => $date],
+        ['appointments' => $m->appointment_count, ...]
+      );
+    }
+  }
+}
+```
+
+Expected Benefit:
+✓ Query time: 30-60 seconds → 10ms
+✓ Dashboard load time: 3000x faster
+✓ CPU usage: 95% reduction
+
+
+B. SEPARATE ANALYTICS DATABASE:
+
+┌──────────────────────────────────────┐
+│ Operational Database (OLTP)          │
+│ • Handles live transactions          │
+│ • Real-time data                     │
+│ • Optimized for writes               │
+│ • Normalized schema                  │
+└──────────────────────────────────────┘
+              │
+              │ (ETL: hourly sync)
+              ▼
+┌──────────────────────────────────────┐
+│ Analytics Database (OLAP)            │
+│ • Read-only copy for analysis        │
+│ • Denormalized schema (star schema)  │
+│ • Optimized for complex queries      │
+│ • No impact on production DB          │
+└──────────────────────────────────────┘
+
+Benefits:
+✓ Production database unaffected by heavy analytics
+✓ Can optimize analytics schema separately
+✓ Scale independently
+✓ Different backup/retention policies
+
+
+C. BATCH PROCESSING:
+
+Morning (5 AM):
+├─ Run daily aggregation jobs
+├─ Update doctor metrics
+├─ Update drug usage trends
+├─ Send email reports (background)
+└─ No impact on user traffic
+
+During Business Hours:
+├─ Use pre-calculated metrics
+├─ Return in <100ms
+└─ Instant dashboard
+
+Expected Benefit:
+✓ No server load during peak hours
+✓ Users get instant results
+✓ Batch jobs complete by morning without urgency
+
+─────────────────────────────────────────────────────
+
+
+BOTTLENECK 5: CONCURRENCY & CONNECTION POOLING
+────────────────────────────────────────────────
+
+Deskripsi:
+• Multiple concurrent appointment requests
+• Payment processing backlog
+• Database connection exhaustion
+• Thread/process pool depletion
+
+Manifestasi:
+- "Connection pool exhausted" errors
+- Request queuing: requests wait 30+ seconds
+- User experience: app becomes slow for everyone
+- Peak hours: service degradation
+
+Root Cause Analysis:
+┌────────────────────────────────────────────┐
+│ Inadequate Connection Pooling               │
+├────────────────────────────────────────────┤
+│ Config: max_connections = 10                │
+│ Concurrent requests: 100+                   │
+│ Ratio: 10 connections to 100 requests      │
+│                                            │
+│ Result: 90 requests waiting for connection │
+│ Wait time: 500ms - 10 seconds              │
+│ User experience: perceives app as slow     │
+└────────────────────────────────────────────┘
+
+MITIGASI BOTTLENECK 5: CONNECTION OPTIMIZATION
+────────────────────────────────────────────────
+
+A. DATABASE CONNECTION POOL TUNING:
+
+```php
+// config/database.php
+'mysql' => [
+  'driver' => 'mysql',
+  'host' => env('DB_HOST'),
+  'port' => env('DB_PORT', 3306),
+  'database' => env('DB_DATABASE'),
+  'username' => env('DB_USERNAME'),
+  'password' => env('DB_PASSWORD'),
+  
+  // Connection pooling
+  'pool' => [
+    'min' => 5,      // Keep minimum 5 connections open
+    'max' => 30,     // Maximum 30 connections
+    'wait_timeout' => 3600,  // 1 hour
+  ],
+  
+  // Connection reuse
+  'sticky' => true,  // Reuse connection within request
+],
+```
+
+Sizing formula:
+max_connections = (3 * concurrent_users) + buffer
+                = (3 * 100 users) + 10
+                = 310 max connections recommended
+
+
+B. REQUEST QUEUE MANAGEMENT:
+
+```php
+// middleware/QueueRequest.php
+class QueueRequest {
+  public function handle($request, $next) {
+    // If too many concurrent requests, queue
+    if (Cache::increment('concurrent_requests') > 200) {
+      Cache::decrement('concurrent_requests');
+      return response()->json([
+        'error' => 'Server busy, please retry'
+      ], 503);
+    }
+    
+    try {
+      return $next($request);
+    } finally {
+      Cache::decrement('concurrent_requests');
+    }
+  }
+}
+```
+
+Expected Benefit:
+✓ Graceful degradation instead of timeout
+✓ User gets clear message instead of hanging
+
+
+C. CONNECTION TIMEOUT CONFIGURATION:
+
+```php
+// Prevent long-running requests from blocking
+'connect_timeout' => 5,      // 5 seconds to connect
+'request_timeout' => 30,     // 30 seconds timeout per query
+'pool_timeout' => 5,         // 5 seconds to get connection
+```
+
+Expected Benefit:
+✓ Hung queries don't block connection pool
+✓ Freed resources for other requests
+
+─────────────────────────────────────────────────────
+
+
+2. PERFORMANCE BOTTLENECK SUMMARY TABLE
+----------------------------
+
+┌──────────────────────────────────────────────────────────────────┐
+│ BOTTLENECK COMPARISON & IMPACT ANALYSIS                          │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│ Bottleneck          Severity  Effort  ROI    Timeline             │
+│ ─────────────────   ─────────  ──────  ─────  ──────────────      │
+│ 1. DB Queries       CRITICAL   Low     9.5/10 1-2 weeks          │
+│    └─ Indexing                                                   │
+│    └─ N+1 Queries                                                │
+│                                                                  │
+│ 2. Caching          CRITICAL   Low     9.0/10 1-2 weeks          │
+│    └─ Redis Cache                                                │
+│    └─ Session Store   
+│                                                                  │
+│ 3. External APIs    HIGH       Medium  7.5/10 2-3 weeks          │
+│    └─ Async Jobs                                                 │
+│    └─ Retry Logic                                                │
+│                                                                  │
+│ 4. Analytics        MEDIUM     Medium  6.0/10 3-4 weeks          │
+│    └─ Materialized Views                                         │
+│    └─ Batch Process                                              │
+│                                                                  │
+│ 5. Concurrency      MEDIUM     Low     5.5/10 1-2 weeks          │
+│    └─ Pool Sizing                                                │
+│    └─ Timeouts                                                   │
+│                                                                  │
+├──────────────────────────────────────────────────────────────────┤
+│ RECOMMENDED PRIORITY:                                             │
+│ 1. Start with Database Indexing (highest ROI, lowest effort)    │
+│ 2. Implement Caching (quick win, large impact)                  │
+│ 3. Add Async Job Processing (medium effort, good coverage)      │
+│ 4. Optimize Analytics (lower priority, lower immediate impact)  │
+│ 5. Tune Concurrency (monitoring & ongoing optimization)         │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+
+---
+
+3. IMPLEMENTATION ROADMAP
+----------------------------
+
+PHASE 1 (WEEK 1-2): Quick Wins
+───────────────────────────────
+✓ Add database indexes (1-2 days)
+  - Run migration with index creation
+  - Test queries before/after
+  
+✓ Implement eager loading (2-3 days)
+  - Audit controllers for N+1 problems
+  - Add with() clauses
+  - Test for query count reduction
+  
+✓ Setup Redis cache (1-2 days)
+  - Install Redis
+  - Configure Laravel cache driver
+  - Implement cache warming jobs
+  
+Expected Impact: 50-60% response time improvement
+
+
+PHASE 2 (WEEK 3-4): Core Infrastructure
+────────────────────────────────────────────
+✓ Async job queue (2-3 days)
+  - Setup queue job tables/Redis
+  - Implement payment processing async
+  - Setup failed job handling
+  
+✓ Session store optimization (1 day)
+  - Migrate from database to Redis
+  - Test session persistence
+  
+Expected Impact: Additional 30-40% improvement
+
+
+PHASE 3 (WEEK 5-6): Analytics & Monitoring
+──────────────────────────────────────────────
+✓ Materialized views (2-3 days)
+  - Create metrics tables
+  - Setup daily computation jobs
+  - Create dashboards
+  
+✓ Monitoring setup (2-3 days)
+  - Query performance monitoring
+  - Cache hit rate tracking
+  - Alert system for bottlenecks
+  
+Expected Impact: Sub-second dashboard load
+
+
+PHASE 4 (ONGOING): Continuous Optimization
+──────────────────────────────────────────────
+✓ Monitor performance metrics
+✓ Adjust cache TTLs based on hit rates
+✓ Scale database replicas if needed
+✓ Review slow queries monthly
+✓ Update indexes based on query patterns
+
+---
+
+==================================================================
+                    END OF SECTION 6
+                    END OF LAPORAN MEDITRACK
+==================================================================
+
+KESIMPULAN KESELURUHAN:
+
+Platform MediTrack dirancang dengan arsitektur hybrid yang mengintegrasikan:
+1. Layered Architecture untuk struktur yang jelas dan mudah dimaintain
+2. Domain-Driven Design untuk bounded contexts yang independen
+3. Scalable caching strategy untuk performa tinggi
+4. Asynchronous processing untuk responsiveness
+5. Comprehensive monitoring untuk reliability
+
+Dengan implementasi semua mitigasi bottleneck yang disarankan, platform mampu:
+• Handle 10,000+ concurrent users
+• Maintain <500ms response time 95% of time
+• Achieve 99.9% availability
+• Scale horizontally sesuai demand
+• Maintain code quality dan developer productivity
+
+Platform ini siap untuk pertumbuhan eksponensial dan ekspansi ke multiple regions.
+
+================================================================================

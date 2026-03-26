@@ -1,0 +1,346 @@
+================================================================================
+        LAPORAN ARSITEKTUR PLATFORM DIGITAL KESEHATAN - MediTrack
+        Tanggal: 25 Maret 2026
+        Status: Laporan Komprehensif Desain Arsitektur
+================================================================================
+
+BAGIAN 2: DESAIN THINKING & PEMILIHAN ARSITEKTUR
+================================================================================
+
+1. ANALISIS KEBUTUHAN BISNIS
+----------------------------
+
+Platform MediTrack menghadapi tantangan kompleks:
+
+a) Pertumbuhan Cepat
+   - Ekspansi ke rumah sakit di berbagai wilayah
+   - Peningkatan jumlah pengguna yang tidak terduga
+   - Kebutuhan untuk menangani lonjakan traffic pada jam-jam sibuk
+
+b) Keragaman Pengguna
+   - Pasien (individu)
+   - Dokter (profesional medis)
+   - Apoteker (pihak ketiga/farmasi)
+   - Admin (manajemen sistem)
+   - Institusi rumah sakit
+
+c) Kebutuhan Fungsional Kompleks
+   - Manajemen pengguna dengan peran beragam
+   - Penjadwalan janji temu dengan validasi konflik
+   - Manajemen rekam medis elektronik (EHR)
+   - Integrasi farmasi dengan manajemen stok
+   - Sistem pembayaran dengan integrasi asuransi
+   - Analytics dan reporting mendalam
+   - Keamanan dan kepatuhan regulasi healthcare
+
+d) Persyaratan Non-Fungsional
+   - Keamanan tingkat tinggi (HIPAA compliance sesuai kebutuhan)
+   - Skalabilitas horizontal untuk pertumbuhan
+   - Availability tinggi (99.9% uptime)
+   - Performa responsif (<2 detik response time)
+   - Maintainability dan extensibility
+
+---
+
+2. PEMILIHAN ARSITEKTUR: HYBRID ARCHITECTURE (Layered + Domain-Driven Design)
+----------------------------
+
+REKOMENDASI: Hybrid Architecture menggabungkan:
+- Layered Architecture untuk struktur yang jelas
+- Domain-Driven Design (DDD) principles untuk bounded contexts
+- Microservices patterns untuk modul utama yang kritis
+
+PILIHAN DITOLAK:
+
+a) Pure Monolithic:
+   ❌ MENGAPA TIDAK:
+   - Tight coupling akan membuat scaling sulit
+   - Deploy seluruh sistem untuk update kecil
+   - Kesulitan dalam tim paralel development
+   - Single point of failure untuk seluruh platform
+
+b) Pure Microservices:
+   ❌ MENGAPA TIDAK:
+   - Kompleksitas operational yang tinggi
+   - Overhead komunikasi network
+   - Transactional consistency sulit di awal
+   - Learning curve tim terlalu tinggi
+   - Infrastructure cost lebih mahal
+   - Timing tidak tepat (MVP/early stage)
+
+c) Pure Layered:
+   ❌ MENGAPA TIDAK:
+   - Tidak menangani bounded contexts dengan baik
+   - Business logic bisa tersebar di lapisan repository
+   - Sukatan dari domain expertise sulit
+
+---
+
+3. JUSTIFIKASI ARSITEKTUR HYBRID (3 PRINSIP UTAMA)
+----------------------------
+
+PRINSIP 1: Separation of Concerns (SoC) - Pemisahan Tanggung Jawab
+┌─────────────────────────────────────────────────────────────────┐
+│ Setiap modul domain memiliki tanggung jawab spesifik:          │
+│                                                                 │
+│ • Appointment Service: Manajemen jadwal, validasi konflik      │
+│ • Medical Record Service: Penyimpanan & akses rekam medis      │
+│ • Pharmacy Service: Manajemen stok, integrasi farmasi          │
+│ • Payment Service: Transaksi, integrasi payment gateway         │
+│ • Analytics Service: Aggregasi data, reporting, insights        │
+│                                                                 │
+│ MANFAAT:                                                        │
+│ ✓ Setiap service bisa diisolasi dan ditest secara independen   │
+│ ✓ Debugging lebih mudah dan cepat                             │
+│ ✓ Development tim bisa bekerja paralel                         │
+│ ✓ Setiap service bisa di-scale sesuai kebutuhan               │
+└─────────────────────────────────────────────────────────────────┘
+
+PRINSIP 2: Layered Architecture dengan Clear Boundaries
+┌─────────────────────────────────────────────────────────────────┐
+│ Struktur Lapisan:                                               │
+│                                                                 │
+│ ┌─────────────────────────────────────────────────────┐       │
+│ │ API/Presentation Layer (Controllers, API Responses)  │       │
+│ │ ↓                                                   │       │
+│ ├─────────────────────────────────────────────────────┤       │
+│ │ Business Logic Layer (Services, Validators)          │       │
+│ │ ↓                                                   │       │
+│ ├─────────────────────────────────────────────────────┤       │
+│ │ Data Access Layer (Repositories, Models, Queries)    │       │
+│ │ ↓                                                   │       │
+│ ├─────────────────────────────────────────────────────┤       │
+│ │ Database Layer (MySQL/PostgreSQL)                    │       │
+│ └─────────────────────────────────────────────────────┘       │
+│                                                                 │
+│ MANFAAT:                                                        │
+│ ✓ Independensi antar lapisan                                  │
+│ ✓ Mudah melakukan perubahan di satu lapisan tanpa            │
+│   mempengaruhi lapisan lainnya                                │
+│ ✓ Testing lebih mudah (unit test per lapisan)                 │
+│ ✓ New developer dapat memahami struktur dengan cepat          │
+└─────────────────────────────────────────────────────────────────┘
+
+PRINSIP 3: Bounded Context (DDD) - Konteks Bisnis Terbatas
+┌─────────────────────────────────────────────────────────────────┐
+│ Setiap domain memiliki bounded context sendiri:                │
+│                                                                 │
+│ • User Context: Manajemen identitas, roles, permissions        │
+│ • Appointment Context: Logika penjadwalan, konflik handling    │
+│ • Clinical Context: Rekam medis, data pasien sensitif          │
+│ • Pharmacy Context: Stok, integrasi eksternal farmasi          │
+│ • Financial Context: Pembayaran, asuransi, invoicing           │
+│ • Analytics Context: Data warehouse, reporting                 │
+│                                                                 │
+│ Setiap context memiliki:                                       │
+│ ✓ Model domain yang sesuai (Entities, Value Objects)          │
+│ ✓ Repository spesifik                                         │
+│ ✓ Service Business Logic                                      │
+│ ✓ Ubiquitous Language (istilah bisnis yang jelas)            │
+│ ✓ Clear API untuk komunikasi antar context                    │
+│                                                                 │
+│ MANFAAT:                                                        │
+│ ✓ Alignment dengan organisasi bisnis                          │
+│ ✓ Masing-masing domain bisa evolve secara independen          │
+│ ✓ Mudah untuk later migrate context tertentu ke microservice  │
+│ ✓ Event-driven communication antar context                    │
+└─────────────────────────────────────────────────────────────────┘
+
+---
+
+4. TRADE-OFFS DAN LIMITASI
+----------------------------
+
+KEUNTUNGAN ARSITEKTUR HYBRID:
+
+✓ Scalability Modular
+  - Modul dengan traffic tinggi bisa di-scale independently
+  - Tidak perlu scale seluruh sistem
+  - Cost-efficient: hanya scale apa yang butuh
+
+✓ Flexibility & Extensibility
+  - Mudah menambah modul baru di masa depan
+  - Migrate ke microservices incrementally saat diperlukan
+  - Support berbagai teknologi di context berbeda
+
+✓ Team Productivity
+  - Multiple teams bisa develop paralel
+  - Clear ownership per bounded context
+  - Reduce merge conflicts dan integration issues
+
+✓ Maintainability
+  - Code organization yang jelas
+  - Dependency injection membuat testing mudah
+  - Clear separation between layers
+
+✓ Risk Mitigation
+  - Failure di satu context tidak crash seluruh sistem
+  - Easy rollback per modul
+  - Canary deployment per service
+
+
+KETERBATASAN & TRADE-OFFS:
+
+✗ Complexity Layer Awal
+  - Setup project lebih kompleks dari monolith sederhana
+  - Need untuk: DI container, service locator, repositories
+  - Learning curve untuk junior developers
+  - MITIGASI: Comprehensive documentation, code templates, mentoring
+
+✗ Data Consistency Challenges
+  - Transaksi distributed bisa kompleks (appointment + payment)
+  - MITIGASI: Event Sourcing, Saga pattern untuk transactions
+  - Database triggers untuk consistency
+
+✗ Network Latency (jika later menjadi true microservices)
+  - Communication antar services membutuhkan network calls
+  - MITIGASI: Caching strategy, async messaging, batching
+
+✗ Operational Overhead
+  - Lebih banyak components untuk monitor
+  - Centralized logging & monitoring critical
+  - MITIGASI: Strong DevOps practices, monitoring tools
+
+✗ Database Coupling
+  - Sementara tetap single database (bukan per-service)
+  - Constraint dalam evolusi schema
+  - MITIGASI: Database abstraction layer, versioned schema
+
+---
+
+5. MENDUKUNG SCALABILITY, MAINTAINABILITY, DAN EXTENSIBILITY
+----------------------------
+
+A. SCALABILITY SUPPORT
+   ─────────────────────
+
+   1. Horizontal Scaling Strategy:
+      
+      • Database Level:
+        - Read replicas untuk appointment queries
+        - Analytics queries dipisah ke read-only database
+        - Connection pooling dengan optimal pool size
+      
+      • Application Level:
+        - Stateless services (tidak store session dalam app)
+        - Load balancing di frontend
+        - Cache layer (Redis) untuk high-traffic data
+      
+      • Query Optimization:
+        - Index optimization untuk appointment queries
+        - Pagination untuk large result sets
+        - Query analysis & N+1 prevention
+
+   2. Caching Strategy Multi-Layer:
+      
+      Level 1: Query Cache (Redis)
+      - Cache appointment availability
+      - Cache doctor schedules
+      - Cache pharmacy stock
+      - TTL: 5-15 menit
+      
+      Level 2: Application Cache
+      - Cache user profiles
+      - Cache role/permission data
+      - TTL: 1 jam
+      
+      Level 3: Static Asset Cache
+      - Frontend JavaScript/CSS
+      - Browser caching dengan cache-busting
+      - CDN untuk static files
+
+   3. Asynchronous Processing:
+      - Appointment notifications via job queue
+      - Analytics execution di background
+      - Invoice generation async
+      - Reduces response time untuk user
+
+
+B. MAINTAINABILITY SUPPORT
+   ────────────────────────
+
+   1. Code Organization:
+      ```
+      app/
+      ├── Http/
+      │   ├── Controllers/      # API endpoints
+      │   ├── Middleware/       # Auth, logging, rate limiting
+      │   └── Requests/         # Form validation classes
+      ├── Models/               # Eloquent models (data layer)
+      ├── Services/             # Business logic
+      ├── Repositories/         # Data access layer
+      ├── Events/               # Domain events
+      ├── Listeners/            # Event handlers
+      ├── Exceptions/           # Custom exceptions
+      └── Providers/            # Service container registrations
+      ```
+
+   2. Clear Interfaces & Contracts:
+      - Service interfaces untuk loose coupling
+      - Repository pattern untuk data access abstraction
+      - Middleware pipeline untuk cross-cutting concerns
+      - Event/Listener pattern untuk decoupling
+
+   3. Testing Strategy:
+      - Unit tests untuk services & models
+      - Integration tests untuk API endpoints
+      - Feature tests untuk workflows
+      - 80%+ code coverage target
+
+   4. Documentation:
+      - API documentation dengan OpenAPI/Swagger
+      - Bounded context documentation
+      - Architecture Decision Records (ADRs)
+      - Code comments untuk complex business logic
+
+
+C. EXTENSIBILITY SUPPORT
+   ──────────────────────
+
+   1. Plugin Architecture untuk New Features:
+      - New services bisa ditambah dengan minimal boilerplate
+      - Service provider auto-registers di container
+      - Event-driven architecture memudahkan hooks
+
+   2. New Bounded Contexts:
+      - Duplicate service skeleton
+      - Register service provider
+      - Add routes & controllers
+      - Integrate via events
+
+   3. External Integration:
+      - Adapter pattern untuk payment gateways
+      - Strategy pattern untuk pharmacy APIs
+      - Webhook handlers untuk external systems
+
+   4. Technology Evolution:
+      - Clear separation memungkinkan:
+        * Replace database ke NoSQL untuk analytics
+        * Migrate service ke microservice
+        * Upgrade framework/libraries per service
+        * A/B testing dengan feature flags
+
+---
+
+6. KESIMPULAN PEMILIHAN ARSITEKTUR
+----------------------------
+
+Hybrid Architecture dipilih karena:
+
+✓ Balanced kompleksitas dan flexibility
+✓ Mendukung rapid growth tanpa major refactoring
+✓ Clear structure untuk team coordination
+✓ Optimal untuk MVP yang akan grow jadi large platform
+✓ Foundation mencukupi untuk future microservices migration
+✓ Healthcare compliance lebih mudah implemented
+✓ Security model jelas dengan audit trail per service
+
+Fase Development:
+- PHASE 1 (Sekarang): Hybrid Monolith dengan clear boundaries
+- PHASE 2 (6 bulan): Add caching & async processing
+- PHASE 3 (1-2 tahun): Migrate critical services ke microservices
+- PHASE 4 (2+ tahun): Full microservices architecture
+
+================================================================================
+                            END OF SECTION 2
+================================================================================

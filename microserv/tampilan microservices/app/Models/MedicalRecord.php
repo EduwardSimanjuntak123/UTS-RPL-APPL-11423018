@@ -1,0 +1,43 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class MedicalRecord extends Model
+{
+    protected $fillable = [
+        'patient_id', 'doctor_id', 'appointment_id', 'diagnosis',
+        'treatment', 'lab_results', 'notes', 'medications', 'follow_up_date'
+    ];
+
+    protected $casts = [
+        'follow_up_date' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
+
+    /**
+     * Patient relationship
+     */
+    public function patient()
+    {
+        return $this->belongsTo(User::class, 'patient_id');
+    }
+
+    /**
+     * Doctor relationship
+     */
+    public function doctor()
+    {
+        return $this->belongsTo(User::class, 'doctor_id');
+    }
+
+    /**
+     * Appointment relationship
+     */
+    public function appointment()
+    {
+        return $this->belongsTo(Appointment::class);
+    }
+}
