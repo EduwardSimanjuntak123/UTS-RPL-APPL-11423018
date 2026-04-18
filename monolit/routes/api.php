@@ -6,9 +6,15 @@ use App\Http\Controllers\PrescriptionController;
 use App\Http\Controllers\PharmacyController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\Auth\AuthController;
 use Illuminate\Support\Facades\Route;
 
-// Base API prefix: /api/v1
+// Base API prefix: /api
+
+// ==================== AUTHENTICATION ====================
+Route::post('/register', [AuthController::class, 'apiRegister'])->name('auth.register');
+Route::post('/login', [AuthController::class, 'apiLogin'])->name('auth.login');
+Route::post('/logout', [AuthController::class, 'apiLogout'])->middleware('auth:sanctum')->name('auth.logout');
 
 // ==================== USER MANAGEMENT ====================
 Route::prefix('users')->controller(UserController::class)->group(function () {
