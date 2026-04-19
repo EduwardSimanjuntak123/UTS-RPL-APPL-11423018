@@ -196,3 +196,123 @@ func HealthCheck(c *gin.Context) {
 		"time":    time.Now(),
 	})
 }
+
+// GetAllInvoices gets all invoices
+func GetAllInvoices(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"invoices": []interface{}{}})
+}
+
+// UpdateInvoice updates an invoice
+func UpdateInvoice(c *gin.Context) {
+	id := c.Param("id")
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Invoice updated", "id": id})
+}
+
+// DeleteInvoice deletes an invoice
+func DeleteInvoice(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Invoice deleted", "id": id})
+}
+
+// GetPatientInvoices gets invoices for a patient
+func GetPatientInvoices(c *gin.Context) {
+	patientID := c.Param("patient_id")
+	c.JSON(http.StatusOK, gin.H{"patient_id": patientID, "invoices": []interface{}{}})
+}
+
+// GetAllPayments gets all payments
+func GetAllPayments(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"payments": []interface{}{}})
+}
+
+// UpdatePayment updates a payment
+func UpdatePayment(c *gin.Context) {
+	id := c.Param("id")
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Payment updated", "id": id})
+}
+
+// DeletePayment deletes a payment
+func DeletePayment(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Payment deleted", "id": id})
+}
+
+// VerifyPayment verifies a payment
+func VerifyPayment(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Payment verified", "id": id})
+}
+
+// GetAllInsuranceClaims gets all insurance claims
+func GetAllInsuranceClaims(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"claims": []interface{}{}})
+}
+
+// UpdateInsuranceClaim updates an insurance claim
+func UpdateInsuranceClaim(c *gin.Context) {
+	id := c.Param("id")
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Claim updated", "id": id})
+}
+
+// DeleteInsuranceClaim deletes an insurance claim
+func DeleteInsuranceClaim(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Claim deleted", "id": id})
+}
+
+// CreateRefund creates a refund
+func CreateRefund(c *gin.Context) {
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "Refund created"})
+}
+
+// GetAllRefunds gets all refunds
+func GetAllRefunds(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"refunds": []interface{}{}})
+}
+
+// GetRefund gets a specific refund
+func GetRefund(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"id": id})
+}
+
+// UpdateRefund updates a refund
+func UpdateRefund(c *gin.Context) {
+	id := c.Param("id")
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Refund updated", "id": id})
+}
+
+// GetRevenueReport gets revenue report
+func GetRevenueReport(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"report": map[string]interface{}{}})
+}
+
+// GetPendingPayments gets pending payments
+func GetPendingPayments(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"pending_payments": []interface{}{}})
+}

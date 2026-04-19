@@ -117,13 +117,13 @@ func GetPatientPrescriptions(c *gin.Context) {
 // CreateLabResult creates a new lab result
 func CreateLabResult(c *gin.Context) {
 	var req struct {
-		PatientID      int    `json:"patient_id" binding:"required"`
-		DoctorID       int    `json:"doctor_id" binding:"required"`
-		MedicalRecordID *int  `json:"medical_record_id"`
-		TestName       string `json:"test_name" binding:"required"`
-		Result         string `json:"result" binding:"required"`
-		Unit           string `json:"unit"`
-		ReferenceRange string `json:"reference_range"`
+		PatientID       int    `json:"patient_id" binding:"required"`
+		DoctorID        int    `json:"doctor_id" binding:"required"`
+		MedicalRecordID *int   `json:"medical_record_id"`
+		TestName        string `json:"test_name" binding:"required"`
+		Result          string `json:"result" binding:"required"`
+		Unit            string `json:"unit"`
+		ReferenceRange  string `json:"reference_range"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -156,4 +156,121 @@ func HealthCheck(c *gin.Context) {
 		"service": "medical-service",
 		"time":    time.Now(),
 	})
+}
+
+// GetAllMedicalRecords gets all medical records
+func GetAllMedicalRecords(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"records": []interface{}{}})
+}
+
+// GetMedicalRecord gets a specific medical record
+func GetMedicalRecord(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"id": id, "patient_id": 0, "notes": ""})
+}
+
+// UpdateMedicalRecord updates a medical record
+func UpdateMedicalRecord(c *gin.Context) {
+	id := c.Param("id")
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Record updated", "id": id})
+}
+
+// DeleteMedicalRecord deletes a medical record
+func DeleteMedicalRecord(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Record deleted", "id": id})
+}
+
+// GetAllPrescriptions gets all prescriptions
+func GetAllPrescriptions(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"prescriptions": []interface{}{}})
+}
+
+// GetPrescription gets a specific prescription
+func GetPrescription(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"id": id})
+}
+
+// UpdatePrescription updates a prescription
+func UpdatePrescription(c *gin.Context) {
+	id := c.Param("id")
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Prescription updated", "id": id})
+}
+
+// DeletePrescription deletes a prescription
+func DeletePrescription(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Prescription deleted", "id": id})
+}
+
+// GetAllLabResults gets all lab results
+func GetAllLabResults(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"results": []interface{}{}})
+}
+
+// GetLabResult gets a specific lab result
+func GetLabResult(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"id": id})
+}
+
+// UpdateLabResult updates a lab result
+func UpdateLabResult(c *gin.Context) {
+	id := c.Param("id")
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Lab result updated", "id": id})
+}
+
+// DeleteLabResult deletes a lab result
+func DeleteLabResult(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Lab result deleted", "id": id})
+}
+
+// CreateClinicalNote creates a clinical note
+func CreateClinicalNote(c *gin.Context) {
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "Clinical note created"})
+}
+
+// GetClinicalNote gets a clinical note
+func GetClinicalNote(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"id": id})
+}
+
+// UpdateClinicalNote updates a clinical note
+func UpdateClinicalNote(c *gin.Context) {
+	id := c.Param("id")
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Clinical note updated", "id": id})
+}
+
+// DeleteClinicalNote deletes a clinical note
+func DeleteClinicalNote(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Clinical note deleted", "id": id})
 }

@@ -1,0 +1,304 @@
+version: '3.8'
+
+services:
+  # MySQL databases
+  mysql-users:
+    image: mysql:8.0
+    container_name: meditrack-mysql-users
+    environment:
+      MYSQL_ROOT_PASSWORD: 
+      MYSQL_DATABASE: meditrack_users
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-users-data:/var/lib/mysql
+      - ./database/migrations/users.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  mysql-appointments:
+    image: mysql:8.0
+    container_name: meditrack-mysql-appointments
+    environment:
+      MYSQL_ROOT_PASSWORD: 
+      MYSQL_DATABASE: meditrack_appointments
+    ports:
+      - "3308:3306"
+    volumes:
+      - mysql-appointments-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  mysql-medical:
+    image: mysql:8.0
+    container_name: meditrack-mysql-medical
+    environment:
+      MYSQL_ROOT_PASSWORD: 
+      MYSQL_DATABASE: meditrack_medical
+    ports:
+      - "3309:3306"
+    volumes:
+      - mysql-medical-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  mysql-pharmacy:
+    image: mysql:8.0
+    container_name: meditrack-mysql-pharmacy
+    environment:
+      MYSQL_ROOT_PASSWORD: 
+      MYSQL_DATABASE: meditrack_pharmacy
+    ports:
+      - "3310:3306"
+    volumes:
+      - mysql-pharmacy-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  mysql-payment:
+    image: mysql:8.0
+    container_name: meditrack-mysql-payment
+    environment:
+      MYSQL_ROOT_PASSWORD: 
+      MYSQL_DATABASE: meditrack_payment
+    ports:
+      - "3311:3306"
+    volumes:
+      - mysql-payment-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  mysql-analytics:
+    image: mysql:8.0
+    container_name: meditrack-mysql-analytics
+    environment:
+      MYSQL_ROOT_PASSWORD: 
+      MYSQL_DATABASE: meditrack_analytics
+    ports:
+      - "3312:3306"
+    volumes:
+      - mysql-analytics-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: meditrack-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: meditrack-api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      LOG_LEVEL: info
+      USER_SERVICE_URL: http://user-service:3001
+      APPOINTMENT_SERVICE_URL: http://appointment-service:3002
+      MEDICAL_SERVICE_URL: http://medical-service:3003
+      PHARMACY_SERVICE_URL: http://pharmacy-service:3004
+      PAYMENT_SERVICE_URL: http://payment-service:3005
+      ANALYTICS_SERVICE_URL: http://analytics-service:3006
+    depends_on:
+      - user-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      timeout: 10s
+      retries: 5
+
+  # User Service
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: meditrack-user-service
+    ports:
+      - "3001:3001"
+    environment:
+      SERVICE_NAME: user-service
+      SERVICE_PORT: 3001
+      DB_HOST: mysql-users
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: 
+      DB_NAME: meditrack_users
+      LOG_LEVEL: info
+    depends_on:
+      mysql-users:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      timeout: 10s
+      retries: 5
+
+  # Appointment Service
+  appointment-service:
+    build:
+      context: ./appointment-service
+      dockerfile: Dockerfile
+    container_name: meditrack-appointment-service
+    ports:
+      - "3002:3002"
+    environment:
+      SERVICE_NAME: appointment-service
+      SERVICE_PORT: 3002
+      DB_HOST: mysql-appointments
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: 
+      DB_NAME: meditrack_appointments
+      USER_SERVICE_URL: http://user-service:3001
+      LOG_LEVEL: info
+    depends_on:
+      mysql-appointments:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      timeout: 10s
+      retries: 5
+
+  # Medical Service
+  medical-service:
+    build:
+      context: ./medical-service
+      dockerfile: Dockerfile
+    container_name: meditrack-medical-service
+    ports:
+      - "3003:3003"
+    environment:
+      SERVICE_NAME: medical-service
+      SERVICE_PORT: 3003
+      DB_HOST: mysql-medical
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: 
+      DB_NAME: meditrack_medical
+      USER_SERVICE_URL: http://user-service:3001
+      APPOINTMENT_SERVICE_URL: http://appointment-service:3002
+      LOG_LEVEL: info
+    depends_on:
+      mysql-medical:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      timeout: 10s
+      retries: 5
+
+  # Pharmacy Service
+  pharmacy-service:
+    build:
+      context: ./pharmacy-service
+      dockerfile: Dockerfile
+    container_name: meditrack-pharmacy-service
+    ports:
+      - "3004:3004"
+    environment:
+      SERVICE_NAME: pharmacy-service
+      SERVICE_PORT: 3004
+      DB_HOST: mysql-pharmacy
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: 
+      DB_NAME: meditrack_pharmacy
+      LOG_LEVEL: info
+    depends_on:
+      mysql-pharmacy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
+      timeout: 10s
+      retries: 5
+
+  # Payment Service
+  payment-service:
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    container_name: meditrack-payment-service
+    ports:
+      - "3005:3005"
+    environment:
+      SERVICE_NAME: payment-service
+      SERVICE_PORT: 3005
+      DB_HOST: mysql-payment
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: 
+      DB_NAME: meditrack_payment
+      USER_SERVICE_URL: http://user-service:3001
+      LOG_LEVEL: info
+    depends_on:
+      mysql-payment:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3005/health"]
+      timeout: 10s
+      retries: 5
+
+  # Analytics Service
+  analytics-service:
+    build:
+      context: ./analytics-service
+      dockerfile: Dockerfile
+    container_name: meditrack-analytics-service
+    ports:
+      - "3006:3006"
+    environment:
+      SERVICE_NAME: analytics-service
+      SERVICE_PORT: 3006
+      DB_HOST: mysql-analytics
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: 
+      DB_NAME: meditrack_analytics
+      LOG_LEVEL: info
+    depends_on:
+      mysql-analytics:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3006/health"]
+      timeout: 10s
+      retries: 5
+
+volumes:
+  mysql-users-data:
+  mysql-appointments-data:
+  mysql-medical-data:
+  mysql-pharmacy-data:
+  mysql-payment-data:
+  mysql-analytics-data:
+  prometheus-data:
+
+networks:
+  default:
+    name: meditrack-network
+    driver: bridge

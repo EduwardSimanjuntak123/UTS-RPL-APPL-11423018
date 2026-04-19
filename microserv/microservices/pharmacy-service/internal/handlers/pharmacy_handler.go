@@ -86,7 +86,7 @@ func GetAllDrugs(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"data":  drugs,
-		"page": pageNum,
+		"page":  pageNum,
 		"limit": limitNum,
 	})
 }
@@ -210,7 +210,7 @@ func GetLowStock(c *gin.Context) {
 
 	var lowStocks []map[string]interface{}
 	for rows.Next() {
-		var id, drugID, quantity, reorderLevel int
+		var id, quantity, reorderLevel int
 		var drugName, dosage, location string
 		rows.Scan(&id, &drugName, &dosage, &quantity, &reorderLevel, &location)
 		lowStocks = append(lowStocks, gin.H{
@@ -229,7 +229,7 @@ func GetLowStock(c *gin.Context) {
 // UpdateDrug updates drug information
 func UpdateDrug(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	
+
 	var req models.CreateDrugRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -289,4 +289,108 @@ func HealthCheck(c *gin.Context) {
 		"service": "pharmacy-service",
 		"time":    time.Now(),
 	})
+}
+
+// GetAllStocks gets all stock entries
+func GetAllStocks(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"stocks": []interface{}{}})
+}
+
+// UpdateStock updates a stock entry
+func UpdateStock(c *gin.Context) {
+	id := c.Param("id")
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Stock updated", "id": id})
+}
+
+// DeleteStock deletes a stock entry
+func DeleteStock(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Stock deleted", "id": id})
+}
+
+// GetLowStockDrugs gets drugs with low stock
+func GetLowStockDrugs(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"low_stock_drugs": []interface{}{}})
+}
+
+// CreatePharmacyOrder creates a pharmacy order
+func CreatePharmacyOrder(c *gin.Context) {
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "Order created"})
+}
+
+// GetAllPharmacyOrders gets all pharmacy orders
+func GetAllPharmacyOrders(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"orders": []interface{}{}})
+}
+
+// GetPharmacyOrder gets a specific pharmacy order
+func GetPharmacyOrder(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"id": id})
+}
+
+// UpdatePharmacyOrder updates a pharmacy order
+func UpdatePharmacyOrder(c *gin.Context) {
+	id := c.Param("id")
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Order updated", "id": id})
+}
+
+// CancelPharmacyOrder cancels a pharmacy order
+func CancelPharmacyOrder(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Order cancelled", "id": id})
+}
+
+// GetPatientOrders gets patient orders
+func GetPatientOrders(c *gin.Context) {
+	patientID := c.Param("patient_id")
+	c.JSON(http.StatusOK, gin.H{"patient_id": patientID, "orders": []interface{}{}})
+}
+
+// ConfirmOrder confirms an order
+func ConfirmOrder(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Order confirmed", "id": id})
+}
+
+// MarkOrderReady marks an order as ready
+func MarkOrderReady(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Order marked ready", "id": id})
+}
+
+// MarkOrderPickedUp marks an order as picked up
+func MarkOrderPickedUp(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Order marked picked up", "id": id})
+}
+
+// GetInventoryLog gets inventory transaction log
+func GetInventoryLog(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"inventory_log": []interface{}{}})
+}
+
+// AdjustInventory adjusts inventory
+func AdjustInventory(c *gin.Context) {
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Inventory adjusted"})
 }

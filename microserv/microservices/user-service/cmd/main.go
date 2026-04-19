@@ -5,12 +5,23 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
+	"github.com/meditrack/shared/logging"
+	"github.com/meditrack/shared/metrics"
+	"github.com/meditrack/shared/middleware"
 	"github.com/meditrack/user-service/config"
 	"github.com/meditrack/user-service/internal/db"
 	"github.com/meditrack/user-service/internal/handlers"
 )
 
 func main() {
+	// Initialize logging
+	logging.Initialize()
+	log.Println("✅ Logging initialized")
+
+	// Register metrics
+	metrics.RegisterMetrics()
+	log.Println("✅ Metrics registered")
+
 	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -32,8 +43,15 @@ func main() {
 	// Create Gin router
 	router := gin.Default()
 
+	// Add middleware
+	router.Use(middleware.CorrelationIDMiddleware())
+	router.Use(metrics.MetricsMiddleware())
+
 	// Health check route
 	router.GET("/health", handlers.HealthCheck)
+
+	// Metrics endpoint
+	router.GET("/metrics", gin.WrapH(metrics.MetricsHandler()))
 
 	// User routes
 	router.POST("/users", handlers.CreateUser)
@@ -45,10 +63,13 @@ func main() {
 	// Auth routes
 	router.POST("/auth/login", handlers.Login)
 
+	// Set service health to healthy
+	metrics.SetServiceHealth("user-service", true)
+
 	// Start server
 	port := fmt.Sprintf(":%d", cfg.ServicePort)
 	log.Printf("🚀 User Service running on port %s", port)
-	
+
 	if err := router.Run(port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}

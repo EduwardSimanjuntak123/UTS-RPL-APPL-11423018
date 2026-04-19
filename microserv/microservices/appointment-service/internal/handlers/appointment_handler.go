@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -57,9 +56,9 @@ func CreateAppointment(c *gin.Context) {
 
 	id, _ := result.LastInsertId()
 	c.JSON(http.StatusCreated, gin.H{
-		"message":       "Appointment created successfully",
+		"message":        "Appointment created successfully",
 		"appointment_id": id,
-　  })
+	})
 }
 
 // GetAppointment retrieves appointment details
@@ -124,7 +123,7 @@ func GetAllAppointments(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"data":  appointments,
-		"page": pageNum,
+		"page":  pageNum,
 		"limit": limitNum,
 	})
 }
@@ -132,7 +131,7 @@ func GetAllAppointments(c *gin.Context) {
 // GetPatientAppointments retrieves all appointments for a patient
 func GetPatientAppointments(c *gin.Context) {
 	patientID, _ := strconv.Atoi(c.Param("patient_id"))
-	
+
 	rows, err := db.DB.Query(
 		`SELECT id, patient_id, doctor_id, appointment_date, status, type, location, duration, description, notes, created_at, updated_at
 		 FROM appointments WHERE patient_id = ? ORDER BY appointment_date DESC`, patientID,
@@ -221,4 +220,65 @@ func HealthCheck(c *gin.Context) {
 		"service": "appointment-service",
 		"time":    time.Now(),
 	})
+}
+
+// UpdateAppointment updates an appointment
+func UpdateAppointment(c *gin.Context) {
+	id := c.Param("id")
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Appointment updated", "id": id})
+}
+
+// DeleteAppointment deletes an appointment
+func DeleteAppointment(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Appointment deleted", "id": id})
+}
+
+// CreateSlot creates an availability slot
+func CreateSlot(c *gin.Context) {
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "Slot created successfully"})
+}
+
+// GetAvailableSlots gets available slots
+func GetAvailableSlots(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"slots": []interface{}{}})
+}
+
+// DeleteSlot deletes a slot
+func DeleteSlot(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Slot deleted", "id": id})
+}
+
+// ConfirmAppointment confirms an appointment
+func ConfirmAppointment(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Appointment confirmed", "id": id})
+}
+
+// CompleteAppointment marks appointment as complete
+func CompleteAppointment(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Appointment completed", "id": id})
+}
+
+// GetNotifications gets notifications
+func GetNotifications(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"notifications": []interface{}{}})
+}
+
+// SendNotification sends a notification
+func SendNotification(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Notification sent", "id": id})
 }

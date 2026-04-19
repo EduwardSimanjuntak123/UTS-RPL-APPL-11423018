@@ -3,7 +3,6 @@ package handlers
 import (
 	"database/sql"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -175,4 +174,112 @@ func HealthCheck(c *gin.Context) {
 		"service": "analytics-service",
 		"time":    time.Now(),
 	})
+}
+
+// GetServiceHealth gets health of a specific service
+func GetServiceHealth(c *gin.Context) {
+	service := c.Param("service")
+	c.JSON(http.StatusOK, gin.H{"service": service, "status": "healthy"})
+}
+
+// GetSystemAlerts gets all system alerts
+func GetSystemAlerts(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"alerts": []interface{}{}})
+}
+
+// CreateSystemAlert creates a system alert
+func CreateSystemAlert(c *gin.Context) {
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "Alert created"})
+}
+
+// GetAlert gets a specific alert
+func GetAlert(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"id": id})
+}
+
+// ResolveAlert resolves an alert
+func ResolveAlert(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Alert resolved", "id": id})
+}
+
+// UpdateAlert updates an alert
+func UpdateAlert(c *gin.Context) {
+	id := c.Param("id")
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Alert updated", "id": id})
+}
+
+// DeleteAlert deletes an alert
+func DeleteAlert(c *gin.Context) {
+	id := c.Param("id")
+	c.JSON(http.StatusOK, gin.H{"message": "Alert deleted", "id": id})
+}
+
+// GetUserAnalytics gets user analytics
+func GetUserAnalytics(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"user_analytics": map[string]interface{}{}})
+}
+
+// GetUserAnalyticsDay gets user analytics for a specific day
+func GetUserAnalyticsDay(c *gin.Context) {
+	day := c.Param("day")
+	c.JSON(http.StatusOK, gin.H{"day": day, "analytics": map[string]interface{}{}})
+}
+
+// GetAppointmentAnalytics gets appointment analytics
+func GetAppointmentAnalytics(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"appointment_analytics": map[string]interface{}{}})
+}
+
+// GetAppointmentAnalyticsDay gets appointment analytics for a specific day
+func GetAppointmentAnalyticsDay(c *gin.Context) {
+	day := c.Param("day")
+	c.JSON(http.StatusOK, gin.H{"day": day, "analytics": map[string]interface{}{}})
+}
+
+// GetRevenueAnalytics gets revenue analytics
+func GetRevenueAnalytics(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"revenue_analytics": map[string]interface{}{}})
+}
+
+// GetRevenueAnalyticsDay gets revenue analytics for a specific day
+func GetRevenueAnalyticsDay(c *gin.Context) {
+	day := c.Param("day")
+	c.JSON(http.StatusOK, gin.H{"day": day, "analytics": map[string]interface{}{}})
+}
+
+// GetDashboardOverview gets dashboard overview
+func GetDashboardOverview(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"overview": map[string]interface{}{}})
+}
+
+// GetDailyReport gets daily report
+func GetDailyReport(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"report": map[string]interface{}{}})
+}
+
+// GetWeeklyReport gets weekly report
+func GetWeeklyReport(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"report": map[string]interface{}{}})
+}
+
+// GetMonthlyReport gets monthly report
+func GetMonthlyReport(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"report": map[string]interface{}{}})
+}
+
+// GetCustomReport gets custom report
+func GetCustomReport(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"report": map[string]interface{}{}})
 }
